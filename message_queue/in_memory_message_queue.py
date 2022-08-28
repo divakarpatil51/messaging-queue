@@ -2,6 +2,7 @@ from exceptions.queue_overflow_exception import QueueOverflowException
 from models.message import Message
 from utils.fifo_queue import FIFOQueue
 from .message_queue import MessageQueue
+import logging
 
 
 class InMemoryMessageQueue(MessageQueue):
@@ -18,7 +19,7 @@ class InMemoryMessageQueue(MessageQueue):
         self._validate_queue_size()
         self._messages.push(message=message)
         message = self._messages.pop()
-        print(f"New message {message.get_message()} added to the queue, Queue size: {len(self._consumers)}")
+        logging.info(f"New message {message.get_message()} added to the queue, Queue size: {len(self._consumers)}")
         for consumer in self._consumers:
             consumer.consume(message=message)
 
