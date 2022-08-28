@@ -1,8 +1,10 @@
+import logging
+
 from exceptions.queue_overflow_exception import QueueOverflowException
 from models.message import Message
 from utils.fifo_queue import FIFOQueue
+from utils.pattern_matcher import PatternMatcher
 from .message_queue import MessageQueue
-import logging
 
 
 class InMemoryMessageQueue(MessageQueue):
@@ -18,10 +20,14 @@ class InMemoryMessageQueue(MessageQueue):
     def publish(self, message: Message):
         self._validate_queue_size()
         self._messages.push(message=message)
+
+        logging.info(f"New message {message.get_message()} added to the queue, Queue size: {self._messages.size()}")
         message = self._messages.pop()
-        logging.info(f"New message {message.get_message()} added to the queue, Queue size: {len(self._consumers)}")
+
         for consumer in self._consumers:
-            consumer.consume(message=message)
+            pattern = consumer.get_consumed_message_pattern()
+            if PatternMatcher.match(pattern, str(message.get_message())):
+                consumer.consume(message=message)
 
     def _validate_queue_size(self):
         if self._messages.size() == self._queue_size:

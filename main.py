@@ -21,7 +21,16 @@ if __name__ == '__main__':
     json_prod = JsonProducer(in_mem_queue)
 
     _json_consumer = JsonConsumer("A")
+    _json_consumer.set_consumed_message_pattern(".*test*")
+
+    _json_consumerB = JsonConsumer("B")
+    # _json_consumerB.set_consumed_message_pattern(".*abc*")
+
     in_mem_queue.subscribe(consumer=_json_consumer)
+    in_mem_queue.subscribe(consumer=_json_consumerB)
 
     message = JsonMessage({"messageId": "test"})
+    json_prod.produce(message)
+
+    message = JsonMessage({"messageId": "abc"})
     json_prod.produce(message)
