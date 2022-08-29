@@ -1,5 +1,8 @@
+import time
+
 from .producer import Producer
 from message_queue.message_queue import MessageQueue
+from exceptions.queue_overflow_exception import QueueOverflowException
 
 
 class JsonProducer(Producer):
@@ -8,4 +11,10 @@ class JsonProducer(Producer):
         self._queue = queue
 
     def produce(self, message):
-        self._queue.publish(message)
+        while True:
+            try:
+                self._queue.publish(message)
+                break
+            except QueueOverflowException:
+                # Queue is full. Wait for sometime.
+                time.sleep(3)

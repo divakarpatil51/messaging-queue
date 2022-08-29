@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 
 from consumer.json_consumer import JsonConsumer
 from message_queue.in_memory_message_queue import InMemoryMessageQueue
@@ -8,10 +9,9 @@ from producer.json_producer import JsonProducer
 from utils.logger import LoggerConfig, LogHandlerType
 
 DEFAULT_QUEUE_SIZE = 3
+LoggerConfig.create_logger(log_type=LogHandlerType.StreamHandler)
 
 if __name__ == '__main__':
-    # Initializing  logger
-    LoggerConfig.create_logger(log_type=LogHandlerType.StreamHandler)
 
     queue_size = os.getenv("queue_size", DEFAULT_QUEUE_SIZE)
 
@@ -34,3 +34,8 @@ if __name__ == '__main__':
 
     message = JsonMessage({"messageId": "abc"})
     json_prod.produce(message)
+
+    message = JsonMessage({"messageId": "abc1"})
+    json_prod.produce(message)
+
+    in_mem_queue.wait_for_tasks_execution()

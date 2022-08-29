@@ -1,5 +1,6 @@
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from exceptions.queue_overflow_exception import QueueOverflowException
 from models.message import Message
@@ -17,6 +18,9 @@ class InMemoryMessageQueue(MessageQueue):
         self._messages = FIFOQueue()
         # This value is in seconds
         self._message_ttl = message_ttl
+        self._workers = 3
+        self._in_progress_tasks = []
+        self._executor = ThreadPoolExecutor(max_workers=self._workers)
 
     def subscribe(self, consumer):
         self._consumers.append(consumer)
@@ -28,6 +32,10 @@ class InMemoryMessageQueue(MessageQueue):
 
         logging.info(f"New message {message.get_message()} added to the queue, Queue size: {self._messages.size()}")
 
+        future = self._executor.submit(self._publish)
+        self._in_progress_tasks.append(future)
+
+    def _publish(self):
         message = self._messages.pop()
         if not self._has_msg_expired(message):
             for consumer in self._consumers:
@@ -35,8 +43,15 @@ class InMemoryMessageQueue(MessageQueue):
                 if PatternMatcher.match(pattern, str(message.get_message())):
                     consumer.consume(message=message)
 
+    def wait_for_tasks_execution(self):
+        while True:
+            if all(list(map(lambda future: future.done(), self._in_progress_tasks))):
+                logging.info("All messages consumed successfully")
+                break
+
     def _validate_queue_size(self):
         if self._messages.size() == self._queue_size:
+            logging.error("Queue is full, cannot add more messages to the queue")
             raise QueueOverflowException("Queue is full, cannot add more messages to the queue")
 
     def _has_msg_expired(self, message: Message):
