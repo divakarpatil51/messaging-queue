@@ -69,8 +69,18 @@ class InMemoryMessageQueue(MessageQueue):
                         continue
                     curr_consumer_pattern = curr_consumer.get_consumed_message_pattern()
                     if PatternMatcher.match(curr_consumer_pattern, str(message.get_message())):
-                        curr_consumer.consume(message=message)
+                        self._process_consume(consumer=curr_consumer, message=message)
                         consumers_visited.append(curr_consumer)
+
+    def _process_consume(self, consumer: Consumer, message: Message):
+        while message.get_retry_count() > 0:
+            try:
+                consumer.consume(message=message)
+                break
+            except Exception:
+                message.set_retry_count(message.get_retry_count() - 1)
+        else:
+            logging.info(f"Error occurred while consuming message: {message}")
 
     def wait_for_tasks_execution(self):
         while True:

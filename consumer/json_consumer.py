@@ -10,7 +10,10 @@ class JsonConsumer(Consumer):
         super(JsonConsumer, self).__init__(name=name)
 
     def consume(self, message: Message):
-        logging.info(f"Consumer {self._name} consumed the message: {message.get_message()}")
+        try:
+            logging.info(f"Consumer {self._name} consumed the message: {message.get_message()}")
+        except Exception:
+            raise Exception("Error occurred while consuming message")
 
     def __eq__(self, other):
         if isinstance(other, JsonConsumer):

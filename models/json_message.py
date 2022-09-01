@@ -6,6 +6,7 @@ from .message import Message
 class JsonMessage(Message):
 
     def __init__(self, message: Dict):
+        super(JsonMessage, self).__init__()
         if not isinstance(message, dict):
             raise Exception(f"Message expected to be of type dict but got {type(message)}")
         self._message = message
