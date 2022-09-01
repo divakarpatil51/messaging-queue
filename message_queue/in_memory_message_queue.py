@@ -49,28 +49,28 @@ class InMemoryMessageQueue(MessageQueue):
     def _publish(self):
         with self._lock:
             message = self._messages.pop()
-            if not self._has_msg_expired(message):
-                consumers_stack = []
-                consumers_visited = []
-                for consumer in self._consumers:
-                    pattern = consumer.get_consumed_message_pattern()
+        if not self._has_msg_expired(message):
+            consumers_stack = []
+            consumers_visited = []
+            for consumer in self._consumers:
+                pattern = consumer.get_consumed_message_pattern()
 
-                    if not PatternMatcher.match(pattern, str(message.get_message())) \
-                            or consumer in consumers_visited:
+                if not PatternMatcher.match(pattern, str(message.get_message())) \
+                        or consumer in consumers_visited:
+                    continue
+
+                parents = consumer.get_parents()
+                consumers_stack.append(consumer)
+                if parents:
+                    consumers_stack.extend(parents)
+                while consumers_stack:
+                    curr_consumer = consumers_stack.pop()
+                    if curr_consumer in consumers_visited:
                         continue
-
-                    parents = consumer.get_parents()
-                    consumers_stack.append(consumer)
-                    if parents:
-                        consumers_stack.extend(parents)
-                    while consumers_stack:
-                        curr_consumer = consumers_stack.pop()
-                        if curr_consumer in consumers_visited:
-                            continue
-                        curr_consumer_pattern = curr_consumer.get_consumed_message_pattern()
-                        if PatternMatcher.match(curr_consumer_pattern, str(message.get_message())):
-                            curr_consumer.consume(message=message)
-                            consumers_visited.append(curr_consumer)
+                    curr_consumer_pattern = curr_consumer.get_consumed_message_pattern()
+                    if PatternMatcher.match(curr_consumer_pattern, str(message.get_message())):
+                        curr_consumer.consume(message=message)
+                        consumers_visited.append(curr_consumer)
 
     def wait_for_tasks_execution(self):
         while True:
