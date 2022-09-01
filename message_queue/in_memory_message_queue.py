@@ -1,7 +1,10 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
+from typing import Set
 
+from consumer.consumer import Consumer
 from exceptions.queue_overflow_exception import QueueOverflowException
 from models.message import Message
 from utils.fifo_queue import FIFOQueue
@@ -13,7 +16,7 @@ class InMemoryMessageQueue(MessageQueue):
 
     # TODO: Add message_ttl to config file
     def __init__(self, queue_size: int, message_ttl: int = 60):
-        self._consumers = []
+        self._consumers: Set[Consumer] = set()
         self._queue_size = queue_size
         self._messages = FIFOQueue()
         # This value is in seconds
@@ -21,9 +24,17 @@ class InMemoryMessageQueue(MessageQueue):
         self._workers = 3
         self._in_progress_tasks = []
         self._executor = ThreadPoolExecutor(max_workers=self._workers)
+        self._lock = Lock()
 
-    def subscribe(self, consumer):
-        self._consumers.append(consumer)
+    def subscribe(self, consumer: Consumer):
+        self._validate_consumer_lineage(consumer)
+        self._consumers.add(consumer)
+
+    def _validate_consumer_lineage(self, consumer: Consumer):
+        parents = consumer.get_parents()
+        if parents and not parents.issubset(self._consumers):
+            missing = parents.difference(self._consumers)
+            raise Exception(f"Consumers with name {missing} not subscribed to the queue")
 
     def publish(self, message: Message):
         self._validate_queue_size()
@@ -36,12 +47,30 @@ class InMemoryMessageQueue(MessageQueue):
         self._in_progress_tasks.append(future)
 
     def _publish(self):
-        message = self._messages.pop()
-        if not self._has_msg_expired(message):
-            for consumer in self._consumers:
-                pattern = consumer.get_consumed_message_pattern()
-                if PatternMatcher.match(pattern, str(message.get_message())):
-                    consumer.consume(message=message)
+        with self._lock:
+            message = self._messages.pop()
+            if not self._has_msg_expired(message):
+                consumers_stack = []
+                consumers_visited = []
+                for consumer in self._consumers:
+                    pattern = consumer.get_consumed_message_pattern()
+
+                    if not PatternMatcher.match(pattern, str(message.get_message())) \
+                            or consumer in consumers_visited:
+                        continue
+
+                    parents = consumer.get_parents()
+                    consumers_stack.append(consumer)
+                    if parents:
+                        consumers_stack.extend(parents)
+                    while consumers_stack:
+                        curr_consumer = consumers_stack.pop()
+                        if curr_consumer in consumers_visited:
+                            continue
+                        curr_consumer_pattern = curr_consumer.get_consumed_message_pattern()
+                        if PatternMatcher.match(curr_consumer_pattern, str(message.get_message())):
+                            curr_consumer.consume(message=message)
+                            consumers_visited.append(curr_consumer)
 
     def wait_for_tasks_execution(self):
         while True:

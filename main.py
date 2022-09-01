@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 
 from consumer.json_consumer import JsonConsumer
 from message_queue.in_memory_message_queue import InMemoryMessageQueue
@@ -12,7 +11,6 @@ DEFAULT_QUEUE_SIZE = 3
 LoggerConfig.create_logger(log_type=LogHandlerType.StreamHandler)
 
 if __name__ == '__main__':
-
     queue_size = os.getenv("queue_size", DEFAULT_QUEUE_SIZE)
 
     logging.info(f"Creating queue with size: {queue_size}")
@@ -20,22 +18,25 @@ if __name__ == '__main__':
 
     json_prod = JsonProducer(in_mem_queue)
 
-    _json_consumer = JsonConsumer("A")
-    _json_consumer.set_consumed_message_pattern(".*test*")
+    consumer_A = JsonConsumer("A")
+    # consumer_A.set_consumed_message_pattern(".*test*")
+    in_mem_queue.subscribe(consumer=consumer_A)
 
-    _json_consumerB = JsonConsumer("B")
+    consumer_C = JsonConsumer("C")
+    consumer_C.add_parent(consumer_A)
+    # consumer_C.set_consumed_message_pattern(".*test*")
+    in_mem_queue.subscribe(consumer=consumer_C)
+
+    consumer_B = JsonConsumer("B")
+    consumer_B.add_parent(consumer_C)
+    consumer_B.add_parent(consumer_A)
     # _json_consumerB.set_consumed_message_pattern(".*abc*")
+    in_mem_queue.subscribe(consumer=consumer_B)
 
-    in_mem_queue.subscribe(consumer=_json_consumer)
-    in_mem_queue.subscribe(consumer=_json_consumerB)
+    json_prod.produce(JsonMessage({"messageId": "test"}))
 
-    message = JsonMessage({"messageId": "test"})
-    json_prod.produce(message)
+    json_prod.produce(JsonMessage({"messageId": "abc"}))
 
-    message = JsonMessage({"messageId": "abc"})
-    json_prod.produce(message)
-
-    message = JsonMessage({"messageId": "abc1"})
-    json_prod.produce(message)
+    json_prod.produce(JsonMessage({"messageId": "abc1"}))
 
     in_mem_queue.wait_for_tasks_execution()

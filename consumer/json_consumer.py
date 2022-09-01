@@ -12,8 +12,10 @@ class JsonConsumer(Consumer):
     def consume(self, message: Message):
         logging.info(f"Consumer {self._name} consumed the message: {message.get_message()}")
 
-    def set_consumed_message_pattern(self, pattern: str):
-        self._message_pattern = pattern
+    def __eq__(self, other):
+        if isinstance(other, JsonConsumer):
+            return self.get_name() == other.get_name()
+        return False
 
-    def get_consumed_message_pattern(self):
-        return self._message_pattern
+    def __hash__(self):
+        return hash(self.get_name())
