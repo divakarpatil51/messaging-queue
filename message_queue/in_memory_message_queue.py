@@ -10,6 +10,7 @@ from models.message import Message
 from utils.fifo_queue import FIFOQueue
 from utils.pattern_matcher import PatternMatcher
 from .message_queue import MessageQueue
+from .dead_letter_queue import DeadLetterQueue
 
 
 class InMemoryMessageQueue(MessageQueue):
@@ -25,6 +26,7 @@ class InMemoryMessageQueue(MessageQueue):
         self._in_progress_tasks = []
         self._executor = ThreadPoolExecutor(max_workers=self._workers)
         self._lock = Lock()
+        self._dlq = DeadLetterQueue(self)
 
     def subscribe(self, consumer: Consumer):
         self._validate_consumer_lineage(consumer)
@@ -80,7 +82,8 @@ class InMemoryMessageQueue(MessageQueue):
             except Exception:
                 message.set_retry_count(message.get_retry_count() - 1)
         else:
-            logging.info(f"Error occurred while consuming message: {message}")
+            logging.info(f"Error occurred while consuming message: {message}. Adding it to Dead letter queue.")
+            self._dlq.put(message=message)
 
     def wait_for_tasks_execution(self):
         while True:
@@ -99,3 +102,6 @@ class InMemoryMessageQueue(MessageQueue):
             logging.info(f"{message.get_message()} has expired.")
             return True
         return False
+
+    def get_dlq(self):
+        return self._dlq
